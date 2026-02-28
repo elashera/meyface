@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import queue
+import re
 import subprocess
 import sys
 import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+
+_SAFE_URL_RE = re.compile(r'^https?://', re.IGNORECASE)
 
 
 class AudioDownloaderUI:
@@ -68,6 +71,11 @@ class AudioDownloaderUI:
         if directory:
             self.output_dir_var.set(directory)
 
+    @staticmethod
+    def _is_valid_url(url: str) -> bool:
+        """Return *True* only for http(s) URLs — reject option-like strings."""
+        return bool(_SAFE_URL_RE.match(url))
+
     def _build_command(self) -> list[str]:
         target_dir = Path(self.output_dir_var.get()).expanduser()
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -77,6 +85,7 @@ class AudioDownloaderUI:
             "-m",
             "yt_dlp",
             "--newline",
+            "--no-exec",
             "-P",
             str(target_dir),
             "-o",
@@ -91,6 +100,7 @@ class AudioDownloaderUI:
         else:
             cmd += ["-f", "ba[acodec*=opus]/ba"]
 
+        cmd.append("--")
         cmd.append(self.url_var.get().strip())
         return cmd
 
@@ -98,6 +108,13 @@ class AudioDownloaderUI:
         url = self.url_var.get().strip()
         if not url:
             messagebox.showerror("Falta URL", "Introduce una URL de YouTube o YouTube Music.")
+            return
+
+        if not self._is_valid_url(url):
+            messagebox.showerror(
+                "URL no válida",
+                "Introduce una URL válida que empiece con http:// o https://.",
+            )
             return
 
         if self.proc is not None:
